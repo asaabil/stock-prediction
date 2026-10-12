@@ -1,0 +1,5 @@
+outs:
+- md5: e2aa216e207bf44ada8a42a56f4e1ee1
+  size: 11089
+  hash: md5
+  path: bumi.csv
