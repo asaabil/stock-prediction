@@ -1,0 +1,7 @@
+model_name: "Stock_Prediction_Model"
+registered_version: "v1"
+stage: "Production"
+mlflow_run_id: "cca25282035e4bb2901ea2260ebfd4ee"
+framework: "scikit-learn"
+artifact_path: "model.pkl"
+published_at: "2026-11-03"

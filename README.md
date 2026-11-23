@@ -178,3 +178,9 @@ Untuk mengambil/mengembalikan versi data sesuai commit Git tertentu:
 
 git checkout <commit-hash>
 dvc checkout
+
+## 🤖 Model Inferensi Aktif
+
+* **Model Name:** Stock_Prediction_Model
+* **Active Version:** Version 1 (Production Stage)
+* **Alasan Pemilihan:** Model ini dipilih berdasarkan evaluasi di LK-06 karena memiliki nilai RMSE terendah dan $R^2$ tertinggi di antara eksperimen lainnya. Model ini di-export dari MLflow dan dibungkus ke dalam Docker Container untuk layanan inferensi.
