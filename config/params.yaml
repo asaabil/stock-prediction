@@ -1,0 +1,15 @@
+# Hyperparameter & konfigurasi training (dibaca oleh src/train.py).
+# Mengubah file ini lalu push ke main / buka PR akan otomatis memicu
+# pipeline: test -> retrain -> evaluasi -> registrasi model.
+
+data:
+  path: data/raw/bumi.csv
+  test_size: 0.2
+  random_state: 42
+
+model:
+  # Konfigurasi terbaik dari eksperimen LK-06 (run cca25282...)
+  n_estimators: 15
+  max_depth: 5
+  min_samples_split: 2
+  random_state: 42

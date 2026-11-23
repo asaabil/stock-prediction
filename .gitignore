@@ -216,3 +216,8 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Output pipeline CI (LK-08)
+outputs/
+ci-mlflow/
+mlruns/

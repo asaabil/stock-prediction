@@ -184,3 +184,26 @@ dvc checkout
 * **Model Name:** Stock_Prediction_Model
 * **Active Version:** Version 1 (Production Stage)
 * **Alasan Pemilihan:** Model ini dipilih berdasarkan evaluasi di LK-06 karena memiliki nilai RMSE terendah dan $R^2$ tertinggi di antara eksperimen lainnya. Model ini di-export dari MLflow dan dibungkus ke dalam Docker Container untuk layanan inferensi.
+
+## ⚙️ LK-08: Otomatisasi Pipeline "Code as a Trigger" (GitHub Actions)
+
+Workflow: [`.github/workflows/mlops-automation.yaml`](.github/workflows/mlops-automation.yaml).
+Dipicu otomatis oleh **push ke `main`** dan **pull request ke `main`** (bisa juga manual lewat tombol *Run workflow*).
+
+| Tahap | Job | Isi |
+|---|---|---|
+| 1 | Automated Testing | `pytest -v` (folder `tests/`): preprocessing, fitur, metrik, gerbang evaluasi, config, dan API Flask |
+| 2 | Automated Training | Tarik data terbaru (`src/ingest_data.py`) → versioning `dvc add data/raw/bumi.csv` → `src/train.py` dengan MLflow server di runner |
+| 3 | Evaluation & Validation | `src/evaluate.py` membandingkan metrik dengan `config/thresholds.yaml`; gagal = pipeline berhenti |
+| 4 | Auto-Registry Update | `src/register_model.py` mendaftarkan model ke MLflow Model Registry dengan stage **Staging** (+ alias `staging`) |
+
+- Hyperparameter ada di `config/params.yaml`. Ubah nilainya lalu push/PR untuk memicu retraining.
+- Threshold ada di `config/thresholds.yaml`. Akurasi arah UP/DOWN dibandingkan dengan target LK-01 (> 55%).
+- Hasil MLflow (database registry + artefak model) bisa diunduh dari bagian **Artifacts** di halaman run GitHub Actions (`mlflow-registry`).
+
+Menjalankan test di lokal:
+
+```bash
+pip install -r requirements-ci.txt
+pytest -v
+```
