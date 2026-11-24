@@ -33,7 +33,6 @@ Proyek ini menggunakan GitHub Codespaces sebagai lingkungan
 pengembangan. Environment dikonfigurasi menggunakan Python 3.14.2
 beserta beberapa ekstensi pendukung untuk pengembangan Python dan
 Jupyter Notebook.
-```
 
 ## Cara Menjalankan Proyek
 
@@ -53,7 +52,6 @@ python --version
 
 bash
 pip install -r requirements.txt
-```
 
 ## Branching Strategy
 
@@ -101,7 +99,6 @@ python src/preprocess.py
 
 Output:
 Skrip akan membaca data mentah terbaru, menghapus nilai yang kosong, dan menyimpan data bersih ke dalam direktori data/processed/ dengan format penamaan (contoh: data/processed/bumi_bersih_YYYYMMDD.csv).
-```
 
 Alur Versioning & Manajemen Data dengan DVC
 
