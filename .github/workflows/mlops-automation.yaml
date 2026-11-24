@@ -1,0 +1,172 @@
+# LK-08 - "Code as a Trigger"
+# Setiap push ke main atau pull request ke main otomatis menjalankan:
+#   Tahap 1 test  ->  Tahap 2 train  ->  Tahap 3 evaluate  ->  Tahap 4 register (Staging)
+# Tiap tahap hanya jalan kalau tahap sebelumnya sukses (needs).
+name: MLOps Automation (Code as a Trigger)
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch: # tombol "Run workflow" manual (opsional)
+
+env:
+  PYTHON_VERSION: "3.11"
+  MLFLOW_TRACKING_URI: http://127.0.0.1:5000
+  MLFLOW_DIR: ci-mlflow
+
+jobs:
+  test:
+    name: "Tahap 1 - Automated Testing (pytest)"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: requirements-ci.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements-ci.txt
+
+      - name: Jalankan unit test
+        run: pytest -v
+
+  train:
+    name: "Tahap 2 - Automated Training (DVC + MLflow)"
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: requirements-ci.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements-ci.txt
+
+      - name: Start MLflow tracking server
+        run: |
+          mkdir -p "$MLFLOW_DIR"
+          nohup mlflow server --host 127.0.0.1 --port 5000 \
+            --backend-store-uri "sqlite:///$MLFLOW_DIR/mlflow.db" \
+            --artifacts-destination "$MLFLOW_DIR/artifacts" \
+            > "$MLFLOW_DIR/server.log" 2>&1 &
+          for i in $(seq 1 30); do
+            curl -sf http://127.0.0.1:5000/health && echo " MLflow server siap" && exit 0
+            sleep 2
+          done
+          cat "$MLFLOW_DIR/server.log"; exit 1
+
+      - name: Ingest data terbaru (yfinance)
+        run: python src/ingest_data.py
+
+      - name: Versioning data dengan DVC
+        run: |
+          echo "Hash dataset sebelumnya:"; cat data/raw/bumi.csv.dvc
+          dvc add data/raw/bumi.csv
+          echo "Hash dataset terbaru:"; cat data/raw/bumi.csv.dvc
+          dvc status
+
+      - name: Retraining model (src/train.py)
+        run: python src/train.py
+
+      - name: Stop MLflow server
+        if: always()
+        run: pkill -f "mlflow server" || true
+
+      - name: Upload hasil training
+        uses: actions/upload-artifact@v4
+        with:
+          name: training-output
+          path: |
+            outputs/
+            ci-mlflow/
+            data/raw/bumi.csv.dvc
+          if-no-files-found: error
+
+  evaluate:
+    name: "Tahap 3 - Model Evaluation & Validation"
+    needs: train
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: pip install pyyaml
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: training-output
+
+      - name: Bandingkan metrik dengan threshold (config/thresholds.yaml)
+        run: python src/evaluate.py
+
+      - name: Upload hasil evaluasi
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: evaluation-output
+          path: outputs/evaluation.json
+
+  register:
+    name: "Tahap 4 - Auto-Registry Update (Staging)"
+    needs: evaluate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: requirements-ci.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements-ci.txt
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: training-output
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: evaluation-output
+          path: outputs
+
+      - name: Start MLflow tracking server
+        run: |
+          nohup mlflow server --host 127.0.0.1 --port 5000 \
+            --backend-store-uri "sqlite:///$MLFLOW_DIR/mlflow.db" \
+            --artifacts-destination "$MLFLOW_DIR/artifacts" \
+            > "$MLFLOW_DIR/server.log" 2>&1 &
+          for i in $(seq 1 30); do
+            curl -sf http://127.0.0.1:5000/health && echo " MLflow server siap" && exit 0
+            sleep 2
+          done
+          cat "$MLFLOW_DIR/server.log"; exit 1
+
+      - name: Daftarkan model ke MLflow Model Registry (Staging)
+        run: python src/register_model.py
+
+      - name: Stop MLflow server
+        if: always()
+        run: pkill -f "mlflow server" || true
+
+      - name: Upload MLflow registry
+        uses: actions/upload-artifact@v4
+        with:
+          name: mlflow-registry
+          path: |
+            ci-mlflow/
+            outputs/

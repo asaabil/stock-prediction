@@ -1,0 +1,22 @@
+# Ambang batas validasi model (dibaca oleh src/evaluate.py).
+#
+# blocking: true  -> kalau tidak lolos, pipeline GAGAL dan model TIDAK didaftarkan.
+# blocking: false -> tetap dihitung & dibandingkan, tapi hanya muncul sebagai WARNING.
+
+metrics:
+  # Kriteria keberhasilan dari LK-01 (bagian 4.1 Metrik Teknis):
+  # "Target akurasi model dijaga stabil di atas 55%".
+  # LK-01 mendefinisikan tugas klasifikasi UP/DOWN, sedangkan model LK-06 adalah
+  # regresi harga Close. Karena itu akurasi dihitung sebagai akurasi ARAH:
+  # arah prediksi (prediksi vs Close kemarin) dibandingkan dengan arah aktual.
+  directional_accuracy:
+    min: 0.55
+    blocking: false
+
+  # Gerbang kualitas untuk model regresi LK-06.
+  R2_Score:
+    min: 0.80
+    blocking: true
+  MAPE:
+    max: 0.10
+    blocking: true

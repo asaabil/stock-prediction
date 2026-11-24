@@ -1,0 +1,9 @@
+# Dependensi untuk pipeline CI (test, training, evaluasi, registry).
+# requirements.txt tetap khusus untuk image Docker (serving).
+-r requirements.txt
+mlflow==3.17.2
+skops==0.16.0
+yfinance==1.7.0
+dvc>=3.50,<4
+pyyaml>=6
+pytest>=8
