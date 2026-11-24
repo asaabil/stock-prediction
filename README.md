@@ -239,3 +239,63 @@ curl -X POST http://localhost:8000/predict \
 docker compose down          # hentikan sistem (data di volume tetap ada)
 docker compose down -v       # hentikan sistem dan hapus volume (registry ikut terhapus)
 ```
+
+
+## 🚀 Model Serving dengan MLflow Models & Horizontal Scaling
+
+Model terbaik dilayani sebagai REST API dengan fungsi bawaan MLflow Models. Layanan ini berjalan dalam beberapa replika di belakang load balancer Nginx.
+
+### 1. Naikkan model ke stage Production
+
+```bash
+MLFLOW_TRACKING_URI=http://localhost:5000 python src/promote_model.py
+```
+
+### 2. Serving lokal (tanpa Docker)
+
+```bash
+export MLFLOW_TRACKING_URI=http://localhost:5000
+mlflow models serve -m "models:/Stock_Prediction_Model/Production" -p 5001 --env-manager local
+```
+
+### 3. Bangun image Docker untuk model
+
+```bash
+mlflow models build-docker -m "models:/Stock_Prediction_Model/Production" \
+  -n stock-prediction/model-serving:v1 --env-manager local
+```
+
+### 4. Jalankan seluruh sistem (3 replika model)
+
+```bash
+docker compose up -d
+docker compose ps        # model-serving-1, -2, -3 harus berstatus healthy
+```
+
+### Mengakses endpoint API
+
+| Endpoint | Fungsi |
+|---|---|
+| `GET  http://localhost:8090/ping` | Memeriksa apakah layanan model siap |
+| `POST http://localhost:8090/invocations` | Prediksi harga Close dari `Feature_Close_Lag1` |
+
+Contoh request:
+
+```bash
+curl -X POST http://localhost:8090/invocations \
+     -H "Content-Type: application/json" \
+     -d '{"dataframe_split": {"columns": ["Feature_Close_Lag1"], "data": [[150.0], [200.0]]}}'
+# {"predictions": [148.85..., 196.80...]}
+```
+
+Header respons `X-Served-By` menunjukkan IP replika yang melayani request.
+
+### Menambah atau mengurangi jumlah replika secara dinamis
+
+```bash
+docker compose up -d --scale model-serving=5   # menjadi 5 replika
+docker compose up -d --scale model-serving=3   # kembali ke 3 replika
+```
+
+Nginx membaca ulang DNS Docker setiap 10 detik. Replika baru langsung menerima request tanpa restart load balancer.
+Setiap replika memakai 1 worker dan batas memori 512 MB (lihat `deploy.resources` di `docker-compose.yaml`).
