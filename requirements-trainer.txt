@@ -1,0 +1,4 @@
+# Dependensi layanan model-trainer (docker compose): ingest data + training + registrasi.
+-r requirements.txt
+yfinance==1.7.0
+pyyaml>=6
