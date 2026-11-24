@@ -1,7 +1,4 @@
-# LK-08 - "Code as a Trigger"
-# Setiap push ke main atau pull request ke main otomatis menjalankan:
-#   Tahap 1 test  ->  Tahap 2 train  ->  Tahap 3 evaluate  ->  Tahap 4 register (Staging)
-# Tiap tahap hanya jalan kalau tahap sebelumnya sukses (needs).
+
 name: MLOps Automation (Code as a Trigger)
 
 on:
@@ -9,7 +6,7 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
-  workflow_dispatch: # tombol "Run workflow" manual (opsional)
+  workflow_dispatch: 
 
 env:
   PYTHON_VERSION: "3.11"
