@@ -3,8 +3,14 @@
 #   mlflow-server  : tracking server + Model Registry (data di volume mlflow-data)
 #   model-trainer  : tugas sekali jalan; mendaftarkan model ke registry jika belum ada
 #   api-service    : API inferensi; menarik model dari mlflow-server lewat jaringan mlops-net
+#   model-serving  : model Production yang dibungkus `mlflow models build-docker`, 3 replika
+#   model-lb       : Nginx load balancer di depan replika model-serving (port 8090)
 #
+# Build image model (sekali, setelah model di stage Production):
+#   mlflow models build-docker -m models:/Stock_Prediction_Model/Production \
+#     -n stock-prediction/model-serving:v1 --env-manager local
 # Jalankan seluruh sistem:  docker compose up -d --build
+# Ubah jumlah replika:      docker compose up -d --scale model-serving=5
 name: stock-prediction
 
 services:
@@ -20,6 +26,7 @@ services:
       --port 5000
       --backend-store-uri sqlite:////mlflow/mlflow.db
       --artifacts-destination /mlflow/artifacts
+      --workers 1
       --allowed-hosts mlflow-server,mlflow-server:5000,localhost,localhost:5000,127.0.0.1,127.0.0.1:5000
     ports:
       - "5000:5000"
@@ -76,6 +83,43 @@ services:
       timeout: 5s
       retries: 10
       start_period: 20s
+    restart: unless-stopped
+
+  model-serving:
+    # Image dibuat oleh: mlflow models build-docker (lihat komentar di atas)
+    image: stock-prediction/model-serving:v1
+    pull_policy: never
+    environment:
+      MLFLOW_MODELS_WORKERS: "1"      # 1 worker per replika; skala lewat jumlah replika, bukan worker
+    deploy:
+      replicas: 3                     # horizontal scaling: tiga instansi model berjalan bersamaan
+      resources:
+        limits:
+          memory: 512M                # batas memori per replika agar host tidak kehabisan RAM
+    expose:
+      - "8080"                        # hanya di dalam mlops-net; akses dari host lewat model-lb
+    networks:
+      - mlops-net
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/ping', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    restart: unless-stopped
+
+  model-lb:
+    image: nginx:1.27-alpine
+    container_name: model-lb
+    ports:
+      - "8090:80"
+    volumes:
+      - ./docker/nginx/model-lb.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      model-serving:
+        condition: service_healthy
+    networks:
+      - mlops-net
     restart: unless-stopped
 
 networks:
