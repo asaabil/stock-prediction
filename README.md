@@ -207,3 +207,38 @@ Menjalankan test di lokal:
 pip install -r requirements-ci.txt
 pytest -v
 ```
+
+
+## 🐳 Menjalankan Seluruh Sistem dengan Docker Compose
+
+Seluruh sistem (tracking server, inisialisasi model, dan API inferensi) berjalan dengan **satu perintah**:
+
+```bash
+docker compose up -d --build
+```
+
+| Layanan | Fungsi | Akses dari host |
+|---|---|---|
+| `mlflow-server` | MLflow tracking server + Model Registry. Database dan artefak disimpan di volume `mlflow-data`. | http://localhost:5000 |
+| `model-trainer` | Tugas sekali jalan. Jika registry belum punya model `Stock_Prediction_Model@staging`, layanan ini menjalankan ingest → train → evaluate → register. Jika sudah ada, layanan ini langsung selesai. | - |
+| `api-service` | API inferensi Flask. Saat start, API menarik model `models:/Stock_Prediction_Model@staging` dari `http://mlflow-server:5000`. | http://localhost:8000 |
+
+- Semua layanan terhubung ke custom bridge network `mlops-net`, sehingga kontainer saling memanggil memakai nama layanan (mis. `http://mlflow-server:5000`).
+- Urutan start diatur dengan `depends_on`: `mlflow-server` harus *healthy* → `model-trainer` harus selesai sukses → `api-service` mulai.
+- Volume `mlflow-data` membuat registry dan artefak model tetap ada setelah `docker compose down`.
+
+Perintah yang sering dipakai:
+
+```bash
+docker compose ps            # status layanan yang berjalan
+docker compose ps -a         # termasuk model-trainer yang sudah selesai (Exited 0)
+docker compose logs -f api-service
+
+curl http://localhost:8000/health                       # menampilkan sumber & versi model dari MLflow
+curl -X POST http://localhost:8000/predict \
+     -H "Content-Type: application/json" \
+     -d '{"Feature_Close_Lag1": 150.0}'
+
+docker compose down          # hentikan sistem (data di volume tetap ada)
+docker compose down -v       # hentikan sistem dan hapus volume (registry ikut terhapus)
+```

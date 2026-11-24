@@ -15,6 +15,15 @@ def test_home(client):
     assert "message" in res.get_json()
 
 
+def test_health_menampilkan_sumber_model(client):
+    res = client.get("/health")
+    body = res.get_json()
+    assert res.status_code == 200
+    assert body["status"] == "ok"
+    # Tanpa env MODEL_URI, API memakai model.pkl lokal
+    assert body["model"]["source"] == "local_file"
+
+
 def test_predict_input_valid(client):
     res = client.post("/predict", json={"Feature_Close_Lag1": 150.0})
     body = res.get_json()
